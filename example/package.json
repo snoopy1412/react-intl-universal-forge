@@ -1,0 +1,14 @@
+{
+  "name": "forge-i18n-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsx ./src/demo.ts",
+    "extract": "node ./scripts/extract-locals.js",
+    "translate": "node ./scripts/translate-locals.js"
+  },
+  "dependencies": {
+    "tsx": "^4.19.0",
+    "react-intl-universal-forge": "file:.."
+  }
+}

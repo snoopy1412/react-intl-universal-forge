@@ -1,0 +1,5 @@
+# 示例项目忽略项
+node_modules/
+locales/
+docs/
+*.log
