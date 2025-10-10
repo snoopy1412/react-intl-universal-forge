@@ -25,7 +25,12 @@ export async function runCLI(): Promise<void> {
     .description('扫描代码并提取中文文本，生成多语言文件')
     .option('-c, --config <file>', '指定配置文件路径，默认查找 forge-i18n.config.*')
     .action(async (options: { config?: string }) => {
-      const config = await loadConfig({ cwd: process.cwd(), configPath: options.config })
+      const config = await loadConfig({
+        cwd: process.cwd(),
+        configPath: options.config,
+        command: 'extract',
+        mode: process.env.NODE_ENV ?? 'production'
+      })
       const result = await extract({ config })
 
       console.log('\n'.padStart(1))
@@ -45,7 +50,12 @@ export async function runCLI(): Promise<void> {
     .option('-l, --lang <codes>', '逗号分隔的目标语言列表，如 en_US,ja_JP')
     .option('-f, --force', '强制重新翻译所有条目', false)
     .action(async (options: { config?: string; lang?: string; force?: boolean }) => {
-      const config = await loadConfig({ cwd: process.cwd(), configPath: options.config })
+      const config = await loadConfig({
+        cwd: process.cwd(),
+        configPath: options.config,
+        command: 'translate',
+        mode: process.env.NODE_ENV ?? 'production'
+      })
       const targetLanguages = parseLangOption(options.lang)
       const result = await translate({
         config,

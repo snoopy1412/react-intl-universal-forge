@@ -33,20 +33,32 @@ function cleanupTempDir(dirPath) {
   }
 }
 
-test('translate 在缺少 DeepSeek API key 时抛出明确错误', async (t) => {
+const BASE_PROVIDER = Object.freeze({
+  apiKey: 'test-key',
+  apiUrl: 'https://fake.ai-provider.local/v1/chat/completions',
+  model: 'mock-model',
+  temperature: 0.3,
+  maxTokens: 1024,
+  requestsPerMinute: 60000,
+  maxRetries: 1
+})
+
+function buildProvider(overrides = {}) {
+  return { ...BASE_PROVIDER, ...overrides }
+}
+
+test('translate 在缺少 AI API key 时抛出明确错误', async (t) => {
   t.after(() => {
     resetConfig()
   })
 
   const config = createConfig({
-    deepseek: {
-      apiKey: ''
-    }
+    aiProvider: buildProvider({ apiKey: '' })
   })
 
   await assert.rejects(
     async () => translate({ config }),
-    /未配置 DeepSeek API Key/,
+    /未配置 AI 服务 API Key/,
     '缺少 API key 时必须直接抛错避免静默失败'
   )
 })
@@ -74,12 +86,7 @@ test('translate 仅翻译缺失条目并保留已有译文', async (t) => {
         batchDelay: 0,
         maxTokensPerRequest: 1000
       },
-      deepseek: {
-        apiKey: 'test-key',
-        apiUrl: 'https://fake.deepseek.local',
-        requestsPerMinute: 60000,
-        maxRetries: 1
-      }
+      aiProvider: buildProvider({ apiUrl: 'https://fake.ai.local' })
     },
     { cwd: tempDir }
   )
@@ -175,12 +182,7 @@ test('translate 遇到占位符缺失时保留已有译文作为兜底', async (
         batchDelay: 0,
         maxTokensPerRequest: 1000
       },
-      deepseek: {
-        apiKey: 'test-key',
-        apiUrl: 'https://fake.deepseek.local',
-        requestsPerMinute: 60000,
-        maxRetries: 1
-      }
+      aiProvider: buildProvider({ apiUrl: 'https://fake.ai.local' })
     },
     { cwd: tempDir }
   )
@@ -271,12 +273,7 @@ test('translate 遇到占位符缺失且无兜底时抛出错误', async (t) => 
         batchDelay: 0,
         maxTokensPerRequest: 1000
       },
-      deepseek: {
-        apiKey: 'test-key',
-        apiUrl: 'https://fake.deepseek.local',
-        requestsPerMinute: 60000,
-        maxRetries: 1
-      }
+      aiProvider: buildProvider({ apiUrl: 'https://fake.ai.local' })
     },
     { cwd: tempDir }
   )
@@ -356,12 +353,7 @@ test('translate 在 force 模式下会重新翻译已有条目', async (t) => {
         batchDelay: 0,
         maxTokensPerRequest: 1000
       },
-      deepseek: {
-        apiKey: 'test-key',
-        apiUrl: 'https://fake.deepseek.local',
-        requestsPerMinute: 60000,
-        maxRetries: 1
-      }
+      aiProvider: buildProvider({ apiUrl: 'https://fake.ai.local' })
     },
     { cwd: tempDir }
   )

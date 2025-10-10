@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * i18n 自动翻译脚本 - 基于 DeepSeek API
+ * i18n 自动翻译脚本 - 基于通用开放式聊天模型 API
  *
  * 功能：
  * 1. 读取源语言文件（zh_CN.json）
@@ -44,8 +44,8 @@ function setTranslateContext(config) {
     batchSize: config.translation.batchSize,
     maxTokensPerRequest: config.translation.maxTokensPerRequest,
     batchDelay: config.translation.batchDelay,
-    maxRetries: config.deepseek.maxRetries,
-    requestsPerMinute: config.deepseek.requestsPerMinute,
+    maxRetries: config.aiProvider.maxRetries,
+    requestsPerMinute: config.aiProvider.requestsPerMinute,
     localesDir: config.localesDir
   }
 }
@@ -405,10 +405,11 @@ function delay(ms) {
  */
 async function rateLimitedFetch(url, options) {
   const config = useConfig()
-  const retries = config.deepseek.maxRetries
+  const provider = config.aiProvider
+  const retries = provider.maxRetries
   const now = Date.now()
   const timeSinceLastRequest = now - RATE_LIMIT.lastRequestTime
-  const minInterval = (60 * 1000) / config.deepseek.requestsPerMinute
+  const minInterval = (60 * 1000) / provider.requestsPerMinute
 
   if (timeSinceLastRequest < minInterval) {
     await delay(minInterval - timeSinceLastRequest)
@@ -442,41 +443,51 @@ async function rateLimitedFetch(url, options) {
 }
 
 /**
- * 调用 DeepSeek API
+ * 调用 AI 提供商接口
  * @param {Array} messages - 消息数组
  * @param {Object} options - 可选参数
  * @returns {Promise<string>} API 响应内容
  */
-async function callDeepSeek(messages, options = {}) {
+async function callAIProvider(messages, options = {}) {
   const config = useConfig()
-  const response = await rateLimitedFetch(config.deepseek.apiUrl, {
+  const provider = config.aiProvider
+  const { headers: headerOverrides, ...bodyOverrides } = options
+  const requestBody = {
+    model: provider.model,
+    messages,
+    temperature: bodyOverrides.temperature ?? provider.temperature,
+    max_tokens:
+      bodyOverrides.max_tokens ?? config.translation.maxTokensPerRequest ?? provider.maxTokens,
+    ...provider.request?.body,
+    ...bodyOverrides
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${provider.apiKey}`,
+    ...(provider.request?.headers || {}),
+    ...(headerOverrides || {})
+  }
+
+  const response = await rateLimitedFetch(provider.apiUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.deepseek.apiKey}`
-    },
-    body: JSON.stringify({
-      model: config.deepseek.model,
-      messages,
-      temperature: options.temperature || config.deepseek.temperature,
-      max_tokens: options.max_tokens || config.translation.maxTokensPerRequest,
-      ...options
-    })
+    headers,
+    body: JSON.stringify(requestBody)
   })
 
   const data = await response.json()
 
   // 健壮性检查：处理 API 错误响应
   if (data.error) {
-    throw new Error(`DeepSeek API 错误: ${data.error.message || JSON.stringify(data.error)}`)
+    throw new Error(`AI 服务响应错误: ${data.error.message || JSON.stringify(data.error)}`)
   }
 
   if (!data.choices || data.choices.length === 0) {
-    throw new Error(`DeepSeek API 返回空结果: ${JSON.stringify(data)}`)
+    throw new Error(`AI 服务返回空结果: ${JSON.stringify(data)}`)
   }
 
   if (!data.choices[0].message?.content) {
-    throw new Error(`DeepSeek API 返回无效内容: ${JSON.stringify(data.choices[0])}`)
+    throw new Error(`AI 服务返回无效内容: ${JSON.stringify(data.choices[0])}`)
   }
 
   return data.choices[0].message.content
@@ -532,7 +543,7 @@ ${JSON.stringify(inputData, null, 2)}
 请返回 JSON 格式的翻译结果：`
 
   try {
-    const result = await callDeepSeek([
+    const result = await callAIProvider([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
     ])
@@ -943,8 +954,8 @@ export async function translate(options = {}) {
 
   console.log('开始自动翻译...\n')
 
-  if (!config.deepseek?.apiKey) {
-    throw new Error('未配置 DeepSeek API Key')
+  if (!config.aiProvider?.apiKey) {
+    throw new Error('未配置 AI 服务 API Key（aiProvider.apiKey）')
   }
 
   const force = options.force ?? false

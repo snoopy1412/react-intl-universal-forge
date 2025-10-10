@@ -10,7 +10,7 @@ export function validateConfig(config: ForgeI18nConfig): true {
     throw new Error('配置错误: config 不能为空')
   }
 
-  const { languages, keyGeneration, input } = config
+  const { languages, keyGeneration, input, aiProvider } = config
 
   if (!languages || !languages.source || !Array.isArray(languages.targets)) {
     throw new Error('配置错误: languages 配置无效')
@@ -45,8 +45,8 @@ export function validateConfig(config: ForgeI18nConfig): true {
     if (keyGeneration.ai.batchSize < 1 || keyGeneration.ai.batchSize > 50) {
       throw new Error('配置错误: ai.batchSize 必须在 1-50 之间')
     }
-    if (!config.deepseek?.apiKey) {
-      throw new Error('配置错误: 启用 AI 模式时必须提供 deepseek.apiKey')
+    if (!aiProvider?.apiKey) {
+      throw new Error('配置错误: 启用 AI 策略时必须提供 aiProvider.apiKey')
     }
   }
 

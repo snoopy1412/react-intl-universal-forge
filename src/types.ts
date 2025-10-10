@@ -34,7 +34,12 @@ export interface KeyGenerationConfig {
   ai: AIKeyGenerationConfig
 }
 
-export interface DeepSeekConfig {
+export interface AIRequestOverrides {
+  headers?: Record<string, string>
+  body?: Record<string, unknown>
+}
+
+export interface AIProviderConfig {
   apiKey: string
   apiUrl: string
   model: string
@@ -42,6 +47,7 @@ export interface DeepSeekConfig {
   maxTokens: number
   requestsPerMinute: number
   maxRetries: number
+  request?: AIRequestOverrides
 }
 
 export interface TranslationBatchConfig {
@@ -72,7 +78,7 @@ export interface NormalizeLocaleOptions {
 
 export interface ForgeI18nConfig {
   projectRoot: string
-  deepseek: DeepSeekConfig
+  aiProvider: AIProviderConfig
   languages: LanguagesConfig
   translation: TranslationBatchConfig
   keyGeneration: KeyGenerationConfig
@@ -229,3 +235,14 @@ export type ForgeConfigDefaults = Omit<
   projectRoot?: string
   paths?: Partial<ForgePathsConfig>
 }
+
+export interface ForgeConfigEnv {
+  command: string
+  mode: string
+}
+
+export type ForgeConfigResult = ForgeUserConfig | Promise<ForgeUserConfig>
+
+export type ForgeConfigFactory = (env: ForgeConfigEnv) => ForgeConfigResult
+
+export type ForgeConfigInput = ForgeUserConfig | Promise<ForgeUserConfig> | ForgeConfigFactory

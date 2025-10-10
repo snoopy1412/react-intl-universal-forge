@@ -2,6 +2,7 @@ export { extract } from './core/extract.js'
 export { translate } from './core/translate.js'
 export type {
   ForgeI18nConfig,
+  ForgeUserConfig,
   ExtractResult,
   TranslateOptions,
   TranslateResult,
@@ -11,7 +12,10 @@ export type {
   TransformStats,
   TranslationCollection,
   TranslationDetail,
-  TranslationValue
+  TranslationValue,
+  ForgeConfigEnv,
+  ForgeConfigInput,
+  ForgeConfigFactory
 } from './types.js'
 
 export {
@@ -20,7 +24,8 @@ export {
   getConfig,
   setActiveConfig,
   resetConfig,
-  resolveConfigPath
+  resolveConfigPath,
+  defineConfig
 } from './config/index.js'
 
 export {

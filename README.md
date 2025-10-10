@@ -6,10 +6,10 @@ React intl automation toolkit powered by AST analysis. The project is now fully 
 
 ## 功能特性 · Key Features
 - **AST 精准提取 / AST Accurate Extraction**：扫描 TS/TSX/JS/JSX，识别字符串、模板、JSX 文本及常量配置，并支持顶层常量告警。
-- **多策略 key 生成 / Flexible Key Strategies**：内置语义化、哈希与 DeepSeek AI 三种策略，可生成冲突报告并输出统计数据。
+- **多策略 key 生成 / Flexible Key Strategies**：内置语义化、哈希与 AI 智能 key 三种策略，可对接任意 OpenAI 兼容模型并生成冲突报告。
 - **多格式配置 / Multi-format Config Support**：自动识别 `forge-i18n.config.{js,cjs,mjs,ts,mts,cts,json,yaml,yml}`，可按需切换。
 - **TypeScript 构建链 / Type-safe Build Pipeline**：源码、CLI、工具脚本以及导出都由 `tsc` 编译，发布产物位于 `dist/`。
-- **DeepSeek 翻译集成 / DeepSeek Translation Integration**：提供增量翻译、占位符校验、速率限制与缓存策略。
+- **AI Provider 集成 / AI Provider Integration**：默认适配 OpenAI/DeepSeek 等 Chat Completions 协议，支持自定义地址、模型、头信息及请求体，提供增量翻译与占位符校验。
 - **CLI 命令 / CLI Commands**：`forge-i18n extract` 和 `forge-i18n translate` 支持自定义配置路径、目标语言、强制翻译等参数。
 
 ## 快速开始 · Quick Start
@@ -19,26 +19,49 @@ React intl automation toolkit powered by AST analysis. The project is now fully 
    ```
 2. **选择配置格式 Create configuration file**  
    在项目根目录创建任意一种配置文件，例如 TypeScript 版本：
-   ```ts
-   // forge-i18n.config.ts
-   export default {
-     input: ['src/**/*.{ts,tsx}'],
-     localesDir: 'locales',
-     languages: {
-       source: 'zh_CN',
-       targets: ['zh_CN', 'en_US']
-     },
-     keyGeneration: {
-       strategy: 'semantic',
-       ai: { enabled: false }
-     }
-   }
-   ```
-   *Supported formats: `.json`, `.yaml/.yml`, `.js/.mjs/.cjs`, `.ts/.mts/.cts`.*
+```ts
+// forge-i18n.config.ts
+import { defineConfig } from 'react-intl-universal-forge/config'
+
+export default defineConfig(({ command, mode }) => ({
+  input: ['src/**/*.{ts,tsx}'],
+  localesDir: 'locales',
+  languages: {
+    source: 'zh_CN',
+    targets: ['zh_CN', 'en_US']
+  },
+  aiProvider: {
+    apiKey: process.env.AI_PROVIDER_KEY ?? '',
+    apiUrl: process.env.AI_PROVIDER_URL ?? 'https://api.openai.com/v1/chat/completions',
+    model: process.env.AI_PROVIDER_MODEL ?? 'gpt-4o-mini',
+    temperature: 0.2,
+    maxTokens: 1024,
+    requestsPerMinute: 60,
+    maxRetries: 2,
+    request: {
+      headers: {
+        'X-Custom-Header': 'forge-demo'
+      }
+    }
+  },
+  keyGeneration: {
+    strategy: 'ai',
+    ai: {
+      enabled: command === 'extract',
+      fallbackToSemantic: true
+    }
+  },
+  // 可按运行场景动态调整
+  reporting: {
+    topLevelWarningsPath: `docs/${mode}-${command}-warnings.md`
+  }
+}))
+```
+*Supported formats: `.json`, `.yaml/.yml`, `.js/.mjs/.cjs`, `.ts/.mts/.cts`（可结合 `defineConfig` 工厂函数按命令/模式返回配置）。*
 3. **执行命令 Run commands**
    ```bash
    pnpm exec forge-i18n extract    # 扫描源码并生成多语言文件 / extract keys
-   pnpm exec forge-i18n translate  # 调用 DeepSeek 翻译空白条目 / translate via DeepSeek
+   pnpm exec forge-i18n translate  # 调用自定义 AI 翻译服务 / translate via AI provider
    ```
 4. **编译构建 Build library**
    ```bash
@@ -52,7 +75,8 @@ React intl automation toolkit powered by AST analysis. The project is now fully 
   Output directory for locale bundles.
 - `languages.targets`: 国际化目标语言，使用 `zh_CN` / `en_US` 等格式。  
   Target language codes (supports underscore or hyphen).
-- `keyGeneration.strategy`: `semantic` | `hash` | `ai`，启用 AI 时需提供 `deepseek.apiKey`。  
+- `keyGeneration.strategy`: `semantic` | `hash` | `ai`，启用 AI 时需提供 `aiProvider.apiKey`。  
+- `aiProvider`: 定义 OpenAI 兼容的模型地址、API Key、请求速率与额外头信息，可灵活接入 OpenAI、DeepSeek、Azure OpenAI 等供应商。  
   Key generation strategy with AI fallback behaviour.
 - `postCommands`: 数组形式，在提取结束后按顺序执行额外命令。  
   Additional shell commands executed after extraction.

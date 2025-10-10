@@ -11,6 +11,8 @@ import { validateConfig } from './validation.js'
 import { deepMerge } from '../utils/deep-merge.js'
 import type {
   ForgeConfigDefaults,
+  ForgeConfigEnv,
+  ForgeConfigInput,
   ForgeI18nConfig,
   ForgePathsConfig,
   ForgeUserConfig,
@@ -40,6 +42,8 @@ export interface CreateConfigOptions {
 
 export interface LoadConfigOptions extends CreateConfigOptions {
   configPath?: string
+  command?: string
+  mode?: string
 }
 
 export function createConfig(overrides: ForgeUserConfig = {}, options: CreateConfigOptions = {}): ForgeI18nConfig {
@@ -131,12 +135,18 @@ export async function loadConfig(options: LoadConfigOptions = {}): Promise<Forge
   const explicitPath = options.configPath ? path.resolve(cwd, options.configPath) : undefined
   const resolvedPath = resolveConfigPath(cwd, explicitPath)
 
-  let fileConfig: ForgeUserConfig = {}
+  const env: ForgeConfigEnv = {
+    command: options.command ?? 'load',
+    mode: options.mode ?? process.env.NODE_ENV ?? 'development'
+  }
+
+  let fileConfig: ForgeConfigInput | undefined
   if (resolvedPath) {
     fileConfig = await readConfigFile(resolvedPath)
   }
 
-  const config = createConfig(fileConfig, { cwd })
+  const resolvedUserConfig = await resolveConfigInput(fileConfig ?? {}, env)
+  const config = createConfig(resolvedUserConfig, { cwd })
   setActiveConfig(config)
   return config
 }
@@ -180,7 +190,7 @@ function normalizeLanguages(languages: ForgeUserConfig['languages'] | undefined)
   }
 }
 
-async function readConfigFile(configPath: string): Promise<ForgeUserConfig> {
+async function readConfigFile(configPath: string): Promise<ForgeConfigInput> {
   const ext = path.extname(configPath).toLowerCase()
 
   if (ext === '.json') {
@@ -193,33 +203,53 @@ async function readConfigFile(configPath: string): Promise<ForgeUserConfig> {
 
   if (ext === '.js' || ext === '.mjs' || ext === '.cjs') {
     const module = await import(pathToFileURL(configPath).href)
-    return ensureObjectConfig(module)
+    return extractConfigExport(module)
   }
 
   if (ext === '.ts' || ext === '.mts' || ext === '.cts') {
     const exported = await loadTypeScriptConfig(configPath, ext === '.cts')
-    return ensureObjectConfig(exported)
+    return extractConfigExport(exported)
   }
 
   throw new Error(`不支持的配置文件扩展名: ${ext}`)
 }
 
-function ensureObjectConfig(moduleExport: unknown): ForgeUserConfig {
-  const exported =
-    moduleExport && typeof moduleExport === 'object' && 'default' in (moduleExport as Record<string, unknown>)
-      ? (moduleExport as Record<string, unknown>).default
-      : moduleExport
+function extractConfigExport(moduleExport: unknown): ForgeConfigInput {
+  let result = moduleExport
 
-  const value =
-    exported && typeof exported === 'object' && 'config' in (exported as Record<string, unknown>)
-      ? (exported as Record<string, unknown>).config
-      : exported
-
-  if (!value || typeof value !== 'object') {
-    throw new Error('配置文件必须导出对象')
+  if (result && typeof result === 'object' && 'default' in (result as Record<string, unknown>)) {
+    result = (result as Record<string, unknown>).default
   }
 
-  return value as ForgeUserConfig
+  if (result && typeof result === 'object' && 'config' in (result as Record<string, unknown>)) {
+    result = (result as Record<string, unknown>).config
+  }
+
+  return result as ForgeConfigInput
+}
+
+async function resolveConfigInput(
+  input: ForgeConfigInput,
+  env: ForgeConfigEnv
+): Promise<ForgeUserConfig> {
+  const maybePromise = (value: unknown): value is Promise<ForgeUserConfig> =>
+    Boolean(value && typeof (value as Promise<ForgeUserConfig>).then === 'function')
+
+  if (typeof input === 'function') {
+    const result = (input as (env: ForgeConfigEnv) => ForgeConfigInput)(env)
+    return resolveConfigInput(result, env)
+  }
+
+  if (maybePromise(input)) {
+    const awaited = await input
+    return resolveConfigInput(awaited, env)
+  }
+
+  if (!input || typeof input !== 'object') {
+    throw new Error('配置文件必须导出对象、Promise 或返回对象的函数')
+  }
+
+  return input as ForgeUserConfig
 }
 
 async function loadTypeScriptConfig(configPath: string, isCommonJS: boolean): Promise<unknown> {
@@ -282,4 +312,8 @@ function resolveLocalePath(
 function normalizeLocale(locale: string): string {
   if (locale.includes('-')) return locale
   return locale.replace('_', '-')
+}
+
+export function defineConfig(config: ForgeConfigInput): ForgeConfigInput {
+  return config
 }

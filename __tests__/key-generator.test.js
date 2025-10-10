@@ -93,7 +93,7 @@ test('generateKeysBatch 在 AI 模式下支持字符串输入', async () => {
           }
         }
       },
-      deepseek: {
+      aiProvider: {
         apiKey: 'test-key',
         requestsPerMinute: 60000,
         maxRetries: 1

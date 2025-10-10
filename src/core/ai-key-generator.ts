@@ -293,13 +293,13 @@ function delay(ms: number): Promise<void> {
 
 async function rateLimitedFetch(
   url: string,
-  options: Record<string, unknown>,
+  options: RequestInit,
   config: ForgeI18nConfig,
-  retries = config.deepseek.maxRetries
+  retries = config.aiProvider.maxRetries
 ): Promise<Response> {
   const now = Date.now()
   const timeSinceLastRequest = now - RATE_LIMIT.lastRequestTime
-  const perMinute = Math.max(config.deepseek.requestsPerMinute, 1)
+  const perMinute = Math.max(config.aiProvider.requestsPerMinute, 1)
   const minInterval = (60 * 1000) / perMinute
 
   if (timeSinceLastRequest < minInterval) {
@@ -310,7 +310,7 @@ async function rateLimitedFetch(
 
   for (let index = 0; index < retries; index += 1) {
     try {
-      const response = await fetch(url, options as any)
+      const response = await fetch(url, options)
 
       if (response.status === 429) {
         const retryAfter = parseInt(response.headers.get('Retry-After') ?? '60', 10)
@@ -339,33 +339,42 @@ async function rateLimitedFetch(
   throw new Error('未知错误: rateLimitedFetch 未返回响应')
 }
 
-interface DeepSeekMessage {
+interface ChatMessage {
   role: 'system' | 'user'
   content: string
 }
 
-type DeepSeekOptions = Record<string, unknown>
+type ChatRequestOptions = Record<string, unknown>
 
-async function callDeepSeek(
-  messages: DeepSeekMessage[],
-  options: DeepSeekOptions = {},
+async function callAIProvider(
+  messages: ChatMessage[],
+  options: ChatRequestOptions = {},
   config: ForgeI18nConfig = getConfig()
 ): Promise<string> {
+  const provider = config.aiProvider
+
+  const bodyPayload = {
+    model: provider.model,
+    messages,
+    temperature: options.temperature ?? provider.temperature,
+    max_tokens:
+      options.max_tokens ?? config.translation?.maxTokensPerRequest ?? provider.maxTokens,
+    ...provider.request?.body,
+    ...options
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${provider.apiKey}`,
+    ...(provider.request?.headers || {})
+  }
+
   const response = await rateLimitedFetch(
-    config.deepseek.apiUrl,
+    provider.apiUrl,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.deepseek.apiKey}`
-      },
-      body: JSON.stringify({
-        model: config.deepseek.model,
-        messages,
-        temperature: options.temperature ?? config.deepseek.temperature,
-        max_tokens: options.max_tokens ?? config.deepseek.maxTokens,
-        ...options
-      })
+      headers,
+      body: JSON.stringify(bodyPayload)
     },
     config
   )
@@ -402,7 +411,7 @@ ${filePath ? `文件路径: ${filePath}` : ''}
 
 请生成一个语义化的 i18n key:`
 
-  const result = await callDeepSeek(
+  const result = await callAIProvider(
     [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
@@ -466,7 +475,7 @@ export async function generateAIKeysBatch(
   const userPrompt = `以下是待生成 key 的文本列表，请返回等长的 key 数组，顺序必须对应：
 ${JSON.stringify(inputPayload, null, 2)}`
 
-  const rawResult = await callDeepSeek(
+  const rawResult = await callAIProvider(
     [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }

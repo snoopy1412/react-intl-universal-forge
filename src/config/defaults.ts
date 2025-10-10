@@ -11,10 +11,10 @@ const LANGUAGE_MAP = LOCALE_DEFINITIONS.reduce((acc, def) => {
 
 export const DEFAULT_CONFIG: ForgeConfigDefaults = {
   projectRoot: undefined,
-  deepseek: {
-    apiKey: process.env.DEEPSEEK_API_KEY || '',
-    apiUrl: 'https://api.deepseek.com/chat/completions',
-    model: 'deepseek-chat',
+  aiProvider: {
+    apiKey: process.env.AI_PROVIDER_API_KEY || process.env.OPENAI_API_KEY || '',
+    apiUrl: process.env.AI_PROVIDER_API_URL || 'https://api.openai.com/v1/chat/completions',
+    model: process.env.AI_PROVIDER_MODEL || 'gpt-4o-mini',
     temperature: 0.3,
     maxTokens: 2000,
     requestsPerMinute: 20,
