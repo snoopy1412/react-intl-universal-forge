@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.agentdocs/
+*.log
+*.tmp
+tmp/
+.DS_Store
+.npmrc
+npm-debug.log*
+coverage/
+.forge-cache/

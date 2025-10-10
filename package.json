@@ -1,0 +1,49 @@
+{
+  "name": "react-intl-universal-forge",
+  "version": "0.1.0",
+  "description": "React 国际化提取与翻译工具集，支持 AST 分析、智能 key 生成与多语言文件管理。",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "default": "./dist/config/index.js"
+    }
+  },
+  "bin": {
+    "forge-i18n": "./dist/bin/forge-i18n.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "node scripts/lint.js",
+    "test": "pnpm run build && NODE_TEST_NO_WORKER=1 node --test __tests__/config.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/extract.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/key-generator.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/translate.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/utils.test.js",
+    "format": "node scripts/format-check.js"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "keywords": [
+    "i18n",
+    "react",
+    "intl",
+    "extract",
+    "cli"
+  ],
+  "author": "GPM 团队",
+  "license": "MIT",
+  "dependencies": {
+    "@babel/generator": "^7.28.3",
+    "@babel/parser": "^7.28.4",
+    "@babel/traverse": "^7.28.4",
+    "@babel/types": "^7.28.4",
+    "commander": "^12.1.0",
+    "glob": "^11.0.3",
+    "js-yaml": "^4.1.0",
+    "typescript": "^5.6.3"
+  }
+}
