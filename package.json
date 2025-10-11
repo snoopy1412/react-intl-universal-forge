@@ -26,7 +26,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "lint": "node scripts/lint.js",
-    "test": "pnpm run build && NODE_TEST_NO_WORKER=1 node --test __tests__/config.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/extract.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/key-generator.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/translate.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/utils.test.js",
+    "test": "pnpm run build && node --test __tests__/config.test.js && node --test __tests__/extract.test.js && node --test __tests__/key-generator.test.js && node --test __tests__/translate.test.js && node --test __tests__/utils.test.js",
+    "test:local": "pnpm run build && NODE_TEST_NO_WORKER=1 node --test __tests__/config.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/extract.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/key-generator.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/translate.test.js && NODE_TEST_NO_WORKER=1 node --test __tests__/utils.test.js",
     "format": "node scripts/format-check.js",
     "prepublishOnly": "pnpm run build",
     "postversion": "git push && git push --tags"
