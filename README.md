@@ -247,6 +247,18 @@ node --test __tests__/extract.test.js
 
 ---
 
+## 🚀 发布流程
+
+自动化流程基于 GitHub Actions，在发布 Release 时会构建并推送到 npm。首次使用前请完成以下准备：
+
+1. 在 npm 获取具有发布权限的令牌，并在 GitHub 仓库的 `Settings -> Secrets and variables -> Actions` 中新增 `NPM_TOKEN`。
+2. 确保 `main` 分支代码已合并，执行 `npm version <patch|minor|major>` 更新版本号并推送标签，例如 `git push origin v0.1.1`.
+3. 在 GitHub 创建对应标签的 Release 并点击发布，工作流会自动运行 `pnpm run format`、`pnpm run lint`、`pnpm test`，最后执行 `pnpm publish --access public --no-git-checks`。
+
+发布事件成功后，npm 上的 `react-intl-universal-forge` 将同步更新至对应版本。如需撤销或重发，请在 npm 管理后台执行操作。
+
+---
+
 ## 🤝 贡献指南
 
 我们欢迎任何形式的贡献!
