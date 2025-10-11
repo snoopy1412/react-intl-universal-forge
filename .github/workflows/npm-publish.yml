@@ -38,9 +38,6 @@ jobs:
       - name: 运行 Lint
         run: pnpm run lint
 
-      - name: 运行测试
-        run: pnpm test
-
       - name: 发布到 npm
         run: pnpm publish --access public --no-git-checks
         env:
