@@ -33,6 +33,13 @@ function cleanupTempDir(dirPath) {
   }
 }
 
+// 静默 logger，避免在 worker 模式下向 stdout 输出干扰 test runner
+const silentLogger = {
+  log() {},
+  warn() {},
+  error() {}
+}
+
 function createFixtureProject() {
   const root = createTempDir('forge-extract-')
   fs.mkdirSync(path.join(root, 'src', 'components'), { recursive: true })
@@ -277,7 +284,7 @@ test('extract 将中文提取为翻译文件', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const zhPath = config.getOutputPath('zh_CN')
     const enPath = config.getOutputPath('en_US')
@@ -317,7 +324,7 @@ test('extract 处理含 JSX 的数据配置文件中文', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -349,7 +356,7 @@ test('extract 处理复杂 React 场景与数组常量', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const zhPath = config.getOutputPath('zh_CN')
     const detailPath = config.getOutputDetailPath('zh_CN')
@@ -407,7 +414,7 @@ test('extract 处理 hooks、可选调用与动态模板', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -460,7 +467,7 @@ test('extract 再次执行时保留已有翻译并合并新增文案', async () 
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -485,7 +492,7 @@ test('extract 再次执行时保留已有翻译并合并新增文案', async () 
       'utf-8'
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const updatedEn = JSON.parse(fs.readFileSync(enPath, 'utf-8'))
     assert.equal(
@@ -530,7 +537,7 @@ test('extract 将顶层常量转换为 intl.get 并生成告警', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const headerPath = path.join(projectRoot, 'src', 'layout', 'Header.tsx')
     const transformed = fs.readFileSync(headerPath, 'utf-8')
@@ -594,7 +601,7 @@ test('extract 解析 notification.show 与 Error 场景中的中文', async () =
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -683,7 +690,7 @@ test('extract 处理嵌套数组与对象中的中文', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -743,7 +750,7 @@ test('extract 处理条件渲染中的中文文案', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -811,7 +818,7 @@ test('extract 处理事件处理器中的中文', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -877,7 +884,7 @@ test('extract 处理展开运算符的对象合并', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -941,7 +948,7 @@ test('extract 处理箭头函数中的中文', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -1016,7 +1023,7 @@ test('extract 处理 JSX 属性中的中文', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -1079,7 +1086,7 @@ test('extract 处理 switch-case 语句中的中文', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
@@ -1143,7 +1150,7 @@ test('extract 处理函数参数默认值中的中文', async () => {
       { cwd: projectRoot }
     )
 
-    await extract({ config })
+    await extract({ config, logger: silentLogger })
 
     const detailPath = config.getOutputDetailPath('zh_CN')
     const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
