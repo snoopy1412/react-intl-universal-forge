@@ -1,9 +1,9 @@
 name: 发布到 npm
 
 on:
-  release:
-    types:
-      - published
+  push:
+    tags:
+      - 'v*'
 
 concurrency: publish-${{ github.ref }}
 
