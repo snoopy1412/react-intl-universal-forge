@@ -226,6 +226,36 @@ function createNotificationFixtureProject() {
   return root
 }
 
+function createDataColumnsFixtureProject() {
+  const root = createTempDir('forge-extract-data-columns-')
+  fs.mkdirSync(path.join(root, 'src', 'pages', 'material'), { recursive: true })
+  fs.writeFileSync(
+    path.join(root, 'src', 'pages', 'material', 'data.tsx'),
+    [
+      "import React from 'react';",
+      '',
+      'export const materialColumns = () => [',
+      '  {',
+      '    title: () => (',
+      '      <span>',
+      "        <span style={{ color: 'red', marginRight: '4px' }}>*</span>",
+      '        重量(g)',
+      '      </span>',
+      '    )',
+      '  },',
+      '  {',
+      '    render() {',
+      "      return <span>NoContent</span>",
+      '    }',
+      '  }',
+      ']',
+      ''
+    ].join('\n'),
+    'utf-8'
+  )
+  return root
+}
+
 test('extract 将中文提取为翻译文件', async () => {
   const projectRoot = createFixtureProject()
   try {
@@ -261,6 +291,38 @@ test('extract 将中文提取为翻译文件', async () => {
     const key = Object.keys(zhData).find((k) => zhData[k] === '确认删除吗？')
     assert.ok(key, '应生成包含中文文本的 key')
     assert.equal(enData[key], '', '新增语言应填充为空字符串等待翻译')
+  } finally {
+    cleanupTempDir(projectRoot)
+  }
+})
+
+test('extract 处理含 JSX 的数据配置文件中文', async () => {
+  const projectRoot = createDataColumnsFixtureProject()
+  try {
+    const config = createConfig(
+      {
+        input: ['src/**/*.{ts,tsx}'],
+        localesDir: 'locales',
+        languages: {
+          source: 'zh_CN',
+          targets: ['zh_CN']
+        },
+        keyGeneration: {
+          strategy: 'semantic',
+          ai: {
+            enabled: false
+          }
+        }
+      },
+      { cwd: projectRoot }
+    )
+
+    await extract({ config })
+
+    const detailPath = config.getOutputDetailPath('zh_CN')
+    const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
+    const key = Object.keys(detailData).find((k) => detailData[k].text === '重量(g)')
+    assert.ok(key, '含 JSX 的数据文件应被提取重量(g) 文案')
   } finally {
     cleanupTempDir(projectRoot)
   }

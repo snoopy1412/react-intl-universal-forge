@@ -75,6 +75,23 @@ function mergeJSXTextWithExpressions(ast) {
   })
 }
 
+function fileContainsJSX(ast) {
+  let hasJSX = false
+
+  traverseFn(ast, {
+    JSXElement(path) {
+      hasJSX = true
+      path.stop()
+    },
+    JSXFragment(path) {
+      hasJSX = true
+      path.stop()
+    }
+  })
+
+  return hasJSX
+}
+
 function mergeChildren(children) {
   if (!Array.isArray(children) || children.length === 0) {
     return children
@@ -219,7 +236,6 @@ export function inferContext(filePath) {
 function parseFileToAST(filePath) {
   const code = fs.readFileSync(filePath, 'utf-8')
   const context = inferContext(filePath)
-  const isDataFile = isDataConfigFile(filePath)
   const fileType = detectFileType(filePath)
 
   const ast = parse(code, {
@@ -230,6 +246,12 @@ function parseFileToAST(filePath) {
     ranges: true,
     tokens: true
   })
+
+  const containsJSX = fileContainsJSX(ast)
+  /**
+   * 数据配置文件若包含 JSX，则视为组件文件，允许正常抽取文案
+   */
+  const isDataFile = isDataConfigFile(filePath) && !containsJSX
 
   return { code, ast, context, isDataFile, fileType }
 }
