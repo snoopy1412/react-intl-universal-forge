@@ -1,6 +1,6 @@
 {
   "name": "react-intl-universal-forge",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "React 国际化提取与翻译工具集，支持 AST 分析、智能 key 生成与多语言文件管理。",
   "type": "module",
   "main": "dist/index.js",
