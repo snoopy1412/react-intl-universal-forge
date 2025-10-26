@@ -67,6 +67,28 @@ test('createConfig 解析相对路径并生成函数', () => {
   }
 })
 
+test('createConfig 支持精确指定目标语言', () => {
+  const config = createConfig({
+    languages: {
+      source: 'zh_CN',
+      targets: ['en_US', 'ja_JP'],
+      map: {
+        ja_JP: {
+          name: '日本語',
+          code: 'ja-JP'
+        }
+      }
+    }
+  })
+
+  assert.deepEqual(config.languages.targets, ['zh_CN', 'en_US', 'ja_JP'])
+  assert.deepEqual(config.languages.map, {
+    zh_CN: { name: '简体中文', code: 'zh-CN' },
+    en_US: { name: 'English', code: 'en-US' },
+    ja_JP: { name: '日本語', code: 'ja-JP' }
+  })
+})
+
 test('createConfig 支持自定义 skipFunctionCalls', () => {
   const config = createConfig({
     skipFunctionCalls: ['logger']
