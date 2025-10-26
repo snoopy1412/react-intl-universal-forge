@@ -117,7 +117,6 @@ npx forge-i18n translate
 
 ```typescript
 languages: {
-  source: 'zh_CN',
   targets: ['en_US', 'ja_JP'],
   map: {
     ja_JP: { name: '日本語', code: 'ja-JP' }
@@ -125,7 +124,7 @@ languages: {
 }
 ```
 
-无需显式写入源语言，工具会自动补全 `languages.source` 并仅针对上述语言生成提取与翻译文件。
+未显式设置 `source` 时会使用默认源语言 `zh_CN`，并自动补全到目标语言列表，仅针对上述语言生成提取与翻译文件。
 
 ### AI Provider 配置
 
