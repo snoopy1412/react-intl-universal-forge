@@ -111,6 +111,21 @@ npx forge-i18n translate
 | `languages.targets` | `string[]` | `['zh_CN', 'en_US']` | 目标语言列表 |
 | `keyGeneration.strategy` | `'semantic' \| 'hash' \| 'ai'` | `'semantic'` | Key 生成策略 |
 
+#### 指定翻译语言
+
+可以通过 `languages.targets` 精确控制需要维护的目标语言。例如只生成英文和日文：
+
+```typescript
+languages: {
+  targets: ['en_US', 'ja_JP'],
+  map: {
+    ja_JP: { name: '日本語', code: 'ja-JP' }
+  }
+}
+```
+
+未显式设置 `source` 时会使用默认源语言 `zh_CN`，并自动补全到目标语言列表，仅针对上述语言生成提取与翻译文件。
+
 ### AI Provider 配置
 
 ```typescript

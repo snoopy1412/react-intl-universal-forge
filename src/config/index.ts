@@ -170,22 +170,48 @@ export function resolveConfigPath(cwd: string, explicitPath?: string): string | 
 }
 
 function normalizeLanguages(languages: ForgeUserConfig['languages'] | undefined): LanguagesConfig {
-  const targets = Array.isArray(languages?.targets) ? [...languages.targets] : []
-  const userMap = (languages?.map ?? {}) as LocaleLabelsMap
-  const map: LocaleLabelsMap = { ...DEFAULT_LANGUAGE_LABELS, ...userMap }
+  const source = languages?.source || DEFAULT_CONFIG.languages.source
 
-  for (const code of targets) {
-    if (!map[code]) {
-      map[code] = {
-        name: code,
-        code: normalizeLocale(code)
-      }
+  const targetsInput = languages?.targets
+  const providedTargets = Array.isArray(targetsInput)
+    ? (targetsInput as Array<string | null | undefined>).filter(
+        (code): code is string => typeof code === 'string' && code.trim().length > 0
+      )
+    : undefined
+
+  const baseTargets =
+    providedTargets && providedTargets.length > 0 ? providedTargets : DEFAULT_CONFIG.languages.targets
+
+  const uniqueTargets: string[] = []
+  const seen = new Set<string>()
+
+  const pushTarget = (code: string | null | undefined) => {
+    if (typeof code !== 'string') return
+    const trimmed = code.trim()
+    if (!trimmed || seen.has(trimmed)) return
+    seen.add(trimmed)
+    uniqueTargets.push(trimmed)
+  }
+
+  pushTarget(source)
+  for (const code of baseTargets) {
+    pushTarget(code)
+  }
+
+  const userMap = (languages?.map ?? {}) as LocaleLabelsMap
+  const map: LocaleLabelsMap = {}
+
+  for (const code of uniqueTargets) {
+    const definedLabel = userMap[code] ?? DEFAULT_LANGUAGE_LABELS[code]
+    map[code] = {
+      name: definedLabel?.name ?? code,
+      code: definedLabel?.code ?? normalizeLocale(code)
     }
   }
 
   return {
-    source: languages?.source || DEFAULT_CONFIG.languages.source,
-    targets: targets.length > 0 ? targets : DEFAULT_CONFIG.languages.targets,
+    source,
+    targets: uniqueTargets,
     map
   }
 }
