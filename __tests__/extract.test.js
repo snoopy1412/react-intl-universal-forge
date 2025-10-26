@@ -233,6 +233,25 @@ function createNotificationFixtureProject() {
   return root
 }
 
+function createDiagnosticsFixtureProject() {
+  const root = createTempDir('forge-extract-diagnostic-')
+  fs.mkdirSync(path.join(root, 'src', 'utils'), { recursive: true })
+  fs.writeFileSync(
+    path.join(root, 'src', 'utils', 'logger.ts'),
+    [
+      'export function report(status?: { warn?: (...args: any[]) => void }) {',
+      "  console.log('调试信息');",
+      "  const upper = '多语言'.toUpperCase();",
+      "  status?.warn?.('系统错误', { message: '请稍后再试' });",
+      '  return upper;',
+      '}',
+      ''
+    ].join('\n'),
+    'utf-8'
+  )
+  return root
+}
+
 function createDataColumnsFixtureProject() {
   const root = createTempDir('forge-extract-data-columns-')
   fs.mkdirSync(path.join(root, 'src', 'pages', 'material'), { recursive: true })
@@ -627,6 +646,69 @@ test('extract 解析 notification.show 与 Error 场景中的中文', async () =
       transformed,
       /throw new Error\(intl\.get\(/,
       'Error 构造器中的中文应替换为 intl.get'
+    )
+  } finally {
+    cleanupTempDir(projectRoot)
+  }
+})
+
+test('extract 报告未识别与遗漏的中文样本', async () => {
+  const projectRoot = createDiagnosticsFixtureProject()
+  try {
+    const config = createConfig(
+      {
+        input: ['src/**/*.ts'],
+        localesDir: 'locales',
+        languages: {
+          source: 'zh_CN',
+          targets: ['zh_CN', 'en_US']
+        },
+        keyGeneration: {
+          strategy: 'semantic',
+          ai: {
+            enabled: false
+          }
+        }
+      },
+      { cwd: projectRoot }
+    )
+
+    await extract({ config, logger: silentLogger })
+
+    const detailPath = config.getOutputDetailPath('zh_CN')
+    const detailData = JSON.parse(fs.readFileSync(detailPath, 'utf-8'))
+    const detailTexts = Object.values(detailData).map((item) =>
+      typeof item === 'string' ? item : item.text
+    )
+    assert.ok(detailTexts.includes('请稍后再试'), '应正常提取非跳过的中文内容')
+    assert.ok(!detailTexts.includes('调试信息'), '被跳过的控制台输出不应写入详情')
+
+    const reportPath = config.getOutputReportPath('zh_CN')
+    const reportData = JSON.parse(fs.readFileSync(reportPath, 'utf-8'))
+    const loggerPath = path.join(projectRoot, 'src', 'utils', 'logger.ts')
+    const stat = reportData.fileStats[loggerPath]
+
+    assert.ok(stat, '报告中应包含 logger.ts 的统计信息')
+    assert.equal(stat.unrecognizedSamples.length, 1, '应记录 1 条未识别样本')
+    assert.equal(stat.unrecognizedSamples[0].text, '调试信息')
+    assert.match(
+      stat.unrecognizedSamples[0].reason,
+      /skipFunctionCall:console\.log/,
+      '未识别样本需要标注跳过原因'
+    )
+
+    assert.equal(stat.missingSamples.length, 1, '应记录 1 条遗漏样本')
+    assert.equal(stat.missingSamples[0].text, '多语言')
+
+    assert.equal(
+      reportData.summary.totalUnrecognizedSamples,
+      1,
+      '汇总统计应包含未识别样本数量'
+    )
+    assert.equal(
+      reportData.summary.totalMissingSamples,
+      1,
+      '汇总统计应包含遗漏样本数量'
     )
   } finally {
     cleanupTempDir(projectRoot)

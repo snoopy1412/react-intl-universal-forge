@@ -31,6 +31,28 @@ const generateFn: typeof generate = (generate as unknown as { default?: typeof g
 // 中文正则
 const CHINESE_REGEX = /[\u4e00-\u9fa5]/
 
+const SAMPLE_NODE_TYPES = {
+  STRING_LITERAL: 'string-literal',
+  TEMPLATE_LITERAL: 'template-literal',
+  JSX_TEXT: 'jsx-text'
+}
+
+function getNodeLocation(node) {
+  const line = node?.loc?.start?.line
+  const column = node?.loc?.start?.column
+  return {
+    line: typeof line === 'number' ? line : null,
+    column: typeof column === 'number' ? column : null
+  }
+}
+
+function buildSampleKey(node, nodeType, text) {
+  const { line, column } = getNodeLocation(node)
+  const safeLine = line ?? -1
+  const safeColumn = column ?? -1
+  return `${nodeType}:${safeLine}:${safeColumn}:${text}`
+}
+
 function normalizeJSXTextContent(value = '') {
   return value.replace(/\r?\n\s*/g, '')
 }
@@ -186,6 +208,26 @@ function isInsideRuntimeScope(path) {
   )
 }
 
+function getSkippedFunctionForPath(path, config) {
+  const callParent = path.findParent((p) => p.isCallExpression() || p.isOptionalCallExpression())
+  if (!callParent) return null
+
+  const funcName = getFunctionName(callParent.node.callee)
+  if (!shouldSkipFunctionCall(funcName, config)) {
+    return null
+  }
+
+  let current = path
+  while (current && current !== callParent) {
+    if (current.parentPath === callParent && current.listKey === 'arguments') {
+      return funcName || 'anonymous'
+    }
+    current = current.parentPath
+  }
+
+  return null
+}
+
 function createLazyGetterFromProperty(prop, returnExpression) {
   const keyNode = t.cloneNode(prop.key)
   const getter = t.objectMethod('get', keyNode, [], t.blockStatement([t.returnStatement(returnExpression)]))
@@ -300,16 +342,38 @@ async function collectAndGenerateKeys(
   isDataFile,
   translations,
   useAI,
-  config
+  config,
+  stats,
+  diagnostics = {}
 ) {
   const textsToTranslate = []
+  const recordUnrecognized =
+    typeof diagnostics.recordUnrecognized === 'function' ? diagnostics.recordUnrecognized : null
+
+  const recordSkippedSample = (path, text, nodeType) => {
+    if (!recordUnrecognized) return false
+    const skippedFunc = getSkippedFunctionForPath(path, config)
+    if (!skippedFunc) return false
+    recordUnrecognized(path.node, text, nodeType, `skipFunctionCall:${skippedFunc}`)
+    return true
+  }
 
   // 第一遍: 收集所有中文文本
   traverseFn(ast, {
     JSXText(path) {
-      if (isDataFile) return
       const text = path.node.value.trim()
-      if (!text || !CHINESE_REGEX.test(text) || shouldSkipNode(path)) return
+      if (!text || !CHINESE_REGEX.test(text)) {
+        return
+      }
+      if (isDataFile) {
+        if (recordUnrecognized) {
+          recordUnrecognized(path.node, text, SAMPLE_NODE_TYPES.JSX_TEXT, 'data-file-skip')
+        }
+        return
+      }
+      if (shouldSkipNode(path)) {
+        return
+      }
       // 使用 node 的位置作为唯一标识
       textsToTranslate.push({
         text,
@@ -322,6 +386,9 @@ async function collectAndGenerateKeys(
       if (shouldSkipNode(path) || path.parentPath.isObjectProperty()) return
       const result = parseTemplateLiteral(path.node)
       if (!CHINESE_REGEX.test(result.text)) return
+      if (recordSkippedSample(path, result.text, SAMPLE_NODE_TYPES.TEMPLATE_LITERAL)) {
+        return
+      }
       textsToTranslate.push({
         text: result.text,
         type: 'template',
@@ -333,6 +400,9 @@ async function collectAndGenerateKeys(
     StringLiteral(path) {
       const text = path.node.value
       if (!CHINESE_REGEX.test(text) || shouldSkipNode(path)) return
+      if (recordSkippedSample(path, text, SAMPLE_NODE_TYPES.STRING_LITERAL)) {
+        return
+      }
       if (path.findParent((p) => p.isBinaryExpression({ operator: '+' }))) return
       const extracted = extractValue(path.node, context, filePath, fileType, {}, 0)
       if (extracted?.hasExtraction) {
@@ -354,6 +424,9 @@ async function collectAndGenerateKeys(
 
       const result = parseTemplateLiteral(conversion.templateLiteral)
       if (!CHINESE_REGEX.test(result.text)) return
+      if (recordSkippedSample(path, result.text, SAMPLE_NODE_TYPES.TEMPLATE_LITERAL)) {
+        return
+      }
 
       textsToTranslate.push({
         text: result.text,
@@ -384,9 +457,15 @@ async function collectAndGenerateKeys(
       // 复用已有 key
       item.key = existingKey
       existingKeys.push(item.text)
+      if (stats) {
+        stats.reusedKeys += 1
+      }
     } else {
       // 需要生成新 key
       newTexts.push(item)
+      if (stats) {
+        stats.interpolations += item.vars?.length ?? 0
+      }
     }
   }
 
@@ -401,6 +480,9 @@ async function collectAndGenerateKeys(
       // 分批处理（避免单次请求过大）
       for (let i = 0; i < newTexts.length; i += batchSize) {
         const batch = newTexts.slice(i, i + batchSize)
+        if (stats) {
+          stats.aiGenerated += batch.length
+        }
 
         // 使用批量 API 调用
         const keys = await generateAIKeysBatch(
@@ -577,6 +659,50 @@ function addImports(ast, flags) {
   ast.program.body.unshift(importDeclaration)
 }
 
+function collectResidualChinese(ast, addMissingSample, recordedUnrecognizedKeys) {
+  traverseFn(ast, {
+    JSXText(path) {
+      const text = path.node.value.trim()
+      if (!text || !CHINESE_REGEX.test(text)) return
+      const key = buildSampleKey(path.node, SAMPLE_NODE_TYPES.JSX_TEXT, text)
+      if (recordedUnrecognizedKeys.has(key)) return
+      addMissingSample(path.node, text, SAMPLE_NODE_TYPES.JSX_TEXT)
+    },
+    StringLiteral(path) {
+      const text = path.node.value
+      if (!CHINESE_REGEX.test(text)) return
+
+      const inIntlCall = path.findParent(
+        (parent) =>
+          (parent.isCallExpression() || parent.isOptionalCallExpression()) &&
+          isIntlGetCall(parent.node.callee)
+      )
+      if (inIntlCall) return
+
+      const key = buildSampleKey(path.node, SAMPLE_NODE_TYPES.STRING_LITERAL, text)
+      if (recordedUnrecognizedKeys.has(key)) return
+      addMissingSample(path.node, text, SAMPLE_NODE_TYPES.STRING_LITERAL)
+    },
+    TemplateLiteral(path) {
+      const result = parseTemplateLiteral(path.node)
+      if (!CHINESE_REGEX.test(result.text)) return
+
+      const parent = path.parentPath
+      if (
+        parent &&
+        (parent.isCallExpression() || parent.isOptionalCallExpression()) &&
+        isIntlGetCall(parent.node.callee)
+      ) {
+        return
+      }
+
+      const key = buildSampleKey(path.node, SAMPLE_NODE_TYPES.TEMPLATE_LITERAL, result.text)
+      if (recordedUnrecognizedKeys.has(key)) return
+      addMissingSample(path.node, result.text, SAMPLE_NODE_TYPES.TEMPLATE_LITERAL)
+    }
+  })
+}
+
 /**
  * 转换单个文件，提取中文文本并替换为 i18n 调用
  * @param {string} filePath - 文件路径
@@ -587,7 +713,72 @@ export async function transformFile(filePath, translations, config = getConfig()
   // 解析文件
   const { ast, context, isDataFile, fileType } = parseFileToAST(filePath)
 
-  let stats = { extracted: 0, skipped: 0, dataConstants: 0, topLevelConstants: [] }
+  const stats = {
+    extracted: 0,
+    skipped: 0,
+    dataConstants: 0,
+    reusedKeys: 0,
+    aiGenerated: 0,
+    interpolations: 0,
+    topLevelConstants: [],
+    missingSamples: [],
+    unrecognizedSamples: []
+  }
+
+  const recordedMissingKeys = new Set()
+  const recordedUnrecognizedKeys = new Set()
+
+  const addUnrecognizedSample = (node, text, nodeType, reason) => {
+    const key = buildSampleKey(node, nodeType, text)
+    if (recordedUnrecognizedKeys.has(key)) return
+    recordedUnrecognizedKeys.add(key)
+    stats.unrecognizedSamples.push({
+      text,
+      nodeType,
+      reason,
+      loc: getNodeLocation(node)
+    })
+  }
+
+  const addMissingSample = (node, text, nodeType, reason = 'postTransformScan') => {
+    const key = buildSampleKey(node, nodeType, text)
+    if (recordedUnrecognizedKeys.has(key) || recordedMissingKeys.has(key)) return
+    recordedMissingKeys.add(key)
+    stats.missingSamples.push({
+      text,
+      nodeType,
+      reason,
+      loc: getNodeLocation(node)
+    })
+  }
+
+  const collectUnrecognizedFromArguments = (callPath, reason) => {
+    if (!reason || typeof callPath?.get !== 'function') return
+    const argumentPaths = callPath.get('arguments') || []
+    argumentPaths.forEach((argPath) => {
+      argPath.traverse(
+        {
+          StringLiteral(innerPath) {
+            const text = innerPath.node.value
+            if (!CHINESE_REGEX.test(text)) return
+            addUnrecognizedSample(innerPath.node, text, SAMPLE_NODE_TYPES.STRING_LITERAL, reason)
+            innerPath.skip()
+          },
+          TemplateLiteral(innerPath) {
+            const result = parseTemplateLiteral(innerPath.node)
+            if (!CHINESE_REGEX.test(result.text)) return
+            addUnrecognizedSample(innerPath.node, result.text, SAMPLE_NODE_TYPES.TEMPLATE_LITERAL, reason)
+          },
+          JSXText(innerPath) {
+            const value = innerPath.node.value.trim()
+            if (!value || !CHINESE_REGEX.test(value)) return
+            addUnrecognizedSample(innerPath.node, value, SAMPLE_NODE_TYPES.JSX_TEXT, reason)
+          }
+        },
+        callPath.scope
+      )
+    })
+  }
 
   // 使用对象以便通过引用修改
   const flags = { needsIntlImport: false }
@@ -606,7 +797,11 @@ export async function transformFile(filePath, translations, config = getConfig()
     isDataFile,
     translations,
     useAI,
-    config
+    config,
+    stats,
+    {
+      recordUnrecognized: addUnrecognizedSample
+    }
   )
 
   // 第二遍: 替换文本
@@ -725,7 +920,9 @@ export async function transformFile(filePath, translations, config = getConfig()
 
       // 通用函数调用处理
       const funcName = getFunctionName(callee)
-      if (shouldSkipFunctionCall(funcName)) {
+      if (shouldSkipFunctionCall(funcName, config)) {
+        const reason = `skipFunctionCall:${funcName || 'unknown'}`
+        collectUnrecognizedFromArguments(path, reason)
         return
       }
 
@@ -983,7 +1180,14 @@ export async function transformFile(filePath, translations, config = getConfig()
     // 场景11: 可选调用表达式参数
     // ============================================
     OptionalCallExpression(path) {
-      const { arguments: args } = path.node
+      const { callee, arguments: args } = path.node
+
+      const funcName = getFunctionName(callee)
+      if (shouldSkipFunctionCall(funcName, config)) {
+        const reason = `skipFunctionCall:${funcName || 'unknown'}`
+        collectUnrecognizedFromArguments(path, reason)
+        return
+      }
 
       if (args && args.length > 0) {
         args.forEach((arg, index) => {
@@ -1056,6 +1260,8 @@ export async function transformFile(filePath, translations, config = getConfig()
       }
     }
   })
+
+  collectResidualChinese(ast, addMissingSample, recordedUnrecognizedKeys)
 
   // 处理 import 并生成最终代码
   const code = handleImportsAndGenerate(ast, flags)
