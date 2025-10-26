@@ -188,6 +188,14 @@ export async function extract(options = {}) {
             (acc, item) => acc + (item.dataConstants || 0),
             0
           ),
+          totalMissingSamples: Object.values(fileStats).reduce(
+            (acc, item) => acc + ((item.missingSamples || []).length),
+            0
+          ),
+          totalUnrecognizedSamples: Object.values(fileStats).reduce(
+            (acc, item) => acc + ((item.unrecognizedSamples || []).length),
+            0
+          ),
           collisions: collisions.length,
           errors: errors.length,
           languages: config.languages.targets

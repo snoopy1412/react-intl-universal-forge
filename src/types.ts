@@ -103,6 +103,16 @@ export interface TranslationDetail {
   interpolations?: string[]
 }
 
+export interface SampleDiagnostic {
+  text: string
+  nodeType: 'string-literal' | 'template-literal' | 'jsx-text'
+  reason?: string
+  loc?: {
+    line?: number | null
+    column?: number | null
+  }
+}
+
 export type TranslationValue = string | TranslationDetail
 
 export type TranslationCollection = Record<string, TranslationValue>
@@ -158,8 +168,11 @@ export interface TransformStats {
     line?: number
     intlKey?: string
   }>
-  aiGenerated?: number
-  interpolations?: number
+  aiGenerated: number
+  interpolations: number
+  missingSamples: SampleDiagnostic[]
+  unrecognizedSamples: SampleDiagnostic[]
+  skipped?: number
 }
 
 export interface TransformResult {
